@@ -18,6 +18,78 @@ vector<vector<int>> graph;
 vector<int> vis;
 vector<Element> elements;
 set<pair<int, char>> forbidden;
+map<pair<int, int>, set<int>> switches;
+set<int> voltages, grounds;
+vector<pair<int, int>> coordinates;
+
+void generateCircuitFile() {
+	ofstream out;
+	out.open("SwitchingMatrix.txt");
+	out<<"$ 1 5.0E-6 10 50 5.0 50\n";
+	for (int i=1, y=30, x;i<=k;i++, y+=140, x=30) {
+		for (int j=1;j<=k;j++, x+=140) {
+			pair<int, int> ij = {i, j};
+			string s[3];
+			s[0] = "s " + to_string(x) + " " + to_string(y+100) + " " + 
+					to_string(x+100) + " " + to_string(y+100);
+			s[1] = "s " + to_string(x) + " " + to_string(y) + " " + 
+					to_string(x) + " " + to_string(y+100);
+			s[2] = "s " + to_string(x) + " " + to_string(y) + " " + 
+					to_string(x+100) + " " + to_string(y+100);
+			bool b[3] = {false, false, false};
+			if (switches.find(ij)!=switches.end()) {
+				for (int ii=0;ii<3;ii++) {
+					if (switches[ij].find(ii+1)!=switches[ij].end()) b[ii] = true;
+				}
+			}
+			for (int ii=0;ii<3;ii++) {
+				s[ii] += (b[ii] ? " 0 0 1 false\n" : " 0 1 0 false\n");
+				out<<s[ii];
+			}
+			string w1 = "w " + to_string(x) + " " + to_string(y) + " " + 
+						to_string(x+140) + " " + to_string(y) + " 0 0\n";
+			string w2 = "w " + to_string(x+100) + " " + to_string(y+100) + 
+						" " + to_string(x+100) + " " + 
+						to_string(i!=8? y+240 : y+140) + " 0 0\n";
+			
+			if (j!=8 || voltages.find(i)!=voltages.end() || 
+				grounds.find(i)!=grounds.end()) out<<w1;
+			if (i!=8 || voltages.find(j+8)!=voltages.end() || 
+				grounds.find(j+8)!=grounds.end()) out<<w2;
+			
+			if (i==8) {
+				string v = "R " + to_string(x+100) + " " + to_string(y+140) + 
+							" " + to_string(x+100) + " " + to_string(y+190) + 
+							"  0 40.0 5.0 0.0\n";
+				string g = "g " +  to_string(x+100) + " " + to_string(y+140) + 
+						" " + to_string(x+100) + " " + to_string(y+190) + " 0\n";
+				if (voltages.find(j+8)!=voltages.end()) out<<v;
+				if (grounds.find(j+8)!=grounds.end()) out<<g;
+			}
+		}
+		string v = "R " + to_string(x) + " " + to_string(y) + " " + 
+					to_string(x+50) + " " + to_string(y) + "  0 40.0 5.0 0.0\n";
+		string g = "g " +  to_string(x) + " " + to_string(y) + 
+					" " + to_string(x+50) + " " + to_string(y) + " 0\n";
+					
+		if (voltages.find(i)!=voltages.end()) out<<v;
+		if (grounds.find(i)!=grounds.end()) out<<g;	
+
+	}
+	
+	for (int i=0;i<n*2;i+=2) {
+		string r = "r " + to_string((coordinates[i].second-1)*140+30) + " " +
+					to_string((coordinates[i].first-1)*140+130) + " " + 
+					to_string((coordinates[i+1].second-1)*140+30) + " " +
+					to_string((coordinates[i+1].first-1)*140+130) + " 200 100\n";
+		out<<r;
+	}
+	// string r1 = "r 170 270 1010 690 200 100\n";
+    // string r2 = "r 170 130 870 830 200 100\n";
+	// out<<r1;
+	// out<<r2;
+	out.close();
+}
 
 pair<int, char> determine(int node) {
 	int s=k*k*3;
@@ -86,7 +158,7 @@ void construct() {
 	}
 }
 
-void generateOutput(stack<int> path) {
+void determineSwitches(stack<int> path) {
 	vector<int> p;
 	while (!path.empty()) {
 		p.push_back(path.top());
@@ -96,19 +168,23 @@ void generateOutput(stack<int> path) {
 		pair<int, char> f = determine(p[i]), s = determine(p[i+1]);
 		if (abs(p[i]-p[i+1]) == 1) {
 			if (f.second=='r' && s.second=='c') {
-				printf("{%d, %d, %d}, ", f.first, s.first, 3);
+				switches[{f.first, s.first}].insert(3);
+				// printf("{%d, %d, %d}, ", f.first, s.first, 3);
 			}
 			else if (f.second=='c' && s.second=='r') {
-				printf("{%d, %d, %d}, ", s.first, f.first, 3);
+				switches[{s.first, f.first}].insert(3);
+				// printf("{%d, %d, %d}, ", s.first, f.first, 3);
 			}
 			else {
 				if (f.second=='c') {
 					int row = determine(p[i]+1).first;
-					printf("{%d, %d, %d}, ", row, f.first, 1);
+					switches[{row, f.first}].insert(1);
+					// printf("{%d, %d, %d}, ", row, f.first, 1);
 				}
 				else if (s.second == 'c') {
 					int row = determine(p[i+1]+1).first;
-					printf("{%d, %d, %d}, ", row, s.first, 1);
+					switches[{row, s.first}].insert(1);
+					// printf("{%d, %d, %d}, ", row, s.first, 1);
 				}
 			}
 		}
@@ -116,11 +192,13 @@ void generateOutput(stack<int> path) {
 		else if (abs(p[i]-p[i+1]) == 2) {
 			if (f.second=='r') {
 				int column = determine(p[i]-1).first;
-				printf("{%d, %d, %d}, ", f.first, column, 2);
+				switches[{f.first, column}].insert(2);
+				// printf("{%d, %d, %d}, ", f.first, column, 2);
 			}
 			else if (s.second=='r') {
 				int column = determine(p[i+1]-1).first;
-				printf("{%d, %d, %d}, ", s.first, column, 2);
+				switches[{s.first, column}].insert(2);
+				// printf("{%d, %d, %d}, ", s.first, column, 2);
 			}
 		}
 	}
@@ -148,9 +226,9 @@ void printPath(int index, stack<int> path) {
 			c=current.first;
 			r=determine(p[i]+1).first;
 		}
-		// if (p[i]>k*k*3) printf("(%d%c)", current.first, current.second);
-		// else printf("(%d, %d)", r, c);
-		printf("%d", p[i]);
+		if (p[i]>k*k*3) printf("(%d%c)", current.first, current.second);
+		else printf("(%d, %d)", r, c);
+		// printf("%d", p[i]);
 		if (i>0) printf(" -> ");
 	}
 	cout<<endl;
@@ -206,7 +284,7 @@ bool dfs(int index) {
 			// printf("\n");
 			if (index+1==n || (index+1<n && dfs(index+1))) {
 				// printPath(index, e.path);
-				generateOutput(e.path);
+				determineSwitches(e.path);
 				return true;
 			}
 			continue;
@@ -280,9 +358,12 @@ int main() {
 			int r, c, value;
 			cin>>r>>c;
 			value = (r-1)*k*3+(c-1)*3+1;
+			if (i==1 || i==2) coordinates.push_back({r, c});
 			if (i==1) e.plus = value;
 			else if (i==2) e.minus = value;
 			else {
+				voltages.insert(r);
+				grounds.insert(c);
 				e.source = k*k*3+r;
 				e.ground = k*k*3+c;
 			}
@@ -293,6 +374,6 @@ int main() {
 	// for (int x: graph[26]) cout<<x<<" ";
 	// cout<<endl;
 	// dfs(1);
-	dfs(0);
+	if (dfs(0)) generateCircuitFile();
 	return 0;
 }
