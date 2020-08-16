@@ -12,7 +12,7 @@ struct Element {
 	map<pair<int, char>, int> m;
 };
 
-const int k = 8;
+const int k = 16;
 int n;
 vector<vector<int>> graph;
 vector<int> vis;
@@ -50,21 +50,21 @@ void generateCircuitFile() {
 						to_string(x+140) + " " + to_string(y) + " 0 0\n";
 			string w2 = "w " + to_string(x+100) + " " + to_string(y+100) + 
 						" " + to_string(x+100) + " " + 
-						to_string(i!=8? y+240 : y+140) + " 0 0\n";
+						to_string(i!=k? y+240 : y+140) + " 0 0\n";
 			
-			if (j!=8 || voltages.find(i)!=voltages.end() || 
+			if (j!=k || voltages.find(i)!=voltages.end() || 
 				grounds.find(i)!=grounds.end()) out<<w1;
-			if (i!=8 || voltages.find(j+8)!=voltages.end() || 
-				grounds.find(j+8)!=grounds.end()) out<<w2;
+			if (i!=k || voltages.find(j+k)!=voltages.end() || 
+				grounds.find(j+k)!=grounds.end()) out<<w2;
 			
-			if (i==8) {
+			if (i==k) {
 				string v = "R " + to_string(x+100) + " " + to_string(y+140) + 
 							" " + to_string(x+100) + " " + to_string(y+190) + 
 							"  0 40.0 5.0 0.0\n";
 				string g = "g " +  to_string(x+100) + " " + to_string(y+140) + 
 						" " + to_string(x+100) + " " + to_string(y+190) + " 0\n";
-				if (voltages.find(j+8)!=voltages.end()) out<<v;
-				if (grounds.find(j+8)!=grounds.end()) out<<g;
+				if (voltages.find(j+k)!=voltages.end()) out<<v;
+				if (grounds.find(j+k)!=grounds.end()) out<<g;
 			}
 		}
 		string v = "R " + to_string(x) + " " + to_string(y) + " " + 
@@ -234,10 +234,6 @@ void printPath(int index, stack<int> path) {
 	cout<<endl;
 }
 
-int dist (pair<int, pair<int, int>> a, pair<int, int> goal) {
-	return (a.second.first-goal.first)*(a.second.first-goal.first)+
-			(a.second.second-goal.second)*(a.second.second-goal.second);
-}
 bool dfs(int index) {
 	Element e  = elements[index];
 	e.s.push({e.source, e.source});
@@ -301,24 +297,26 @@ bool dfs(int index) {
 			continue;
 		}
 		
-		vector<pair<int, pair<int, int>>> preserve;
+		int preserve = -1;
+		bool found = false;
+		for (int node: graph[front.first]) {
+			if (!e.vis[node]) {
+				if (node==e.plus) {
+					found = true;
+					e.s.push({node, front.first});
+					break;
+				}
+				if (node==e.ground && e.vis[e.minus]) {
+					found = true;
+					e.s.push({node, front.first});
+					break;
+				}
+			}
+		}
+		if (found) continue;
 		for (int node: graph[front.first]) {
 			// printf("Checking node: %d\n", node);
 			if (!e.vis[node]) {
-				if (node==e.plus) {
-					// printf("Adding %d to stack.\n", node);
-					e.s.push({node, front.first});
-					break;
-				}
-				if (node==e.minus) continue;
-				
-				if (node==e.ground) {
-					if (!e.vis[e.minus]) continue;
-					// printf("Adding %d to stack.\n", node);
-					e.s.push({node, front.first});
-					break;
-				}
-				
 				pair<int, char> current = determine(node);
 				if (current.second=='e') continue;
 				if (front.second==e.minus && 
@@ -326,26 +324,16 @@ bool dfs(int index) {
 							// printf("Wont be adding %d because of %d and %d\n", node, front.first, front.second);
 							continue;
 						}
-				if (fnode==current || (e.vis[e.minus] && current==destination) ||
-					forbidden.find(current)==forbidden.end()) {
-					pair<int, int> rc;
-					if (current.second=='r')
-						rc = {current.first, determine(current.first-1).first};
-					else rc = {determine(current.first+1).first, current.first}; 
-					preserve.push_back({node, rc});
-					// e.s.push({node, front.first});
+				if (fnode==current || (e.vis[e.minus] && current==destination)) {
+					if (preserve == -1) preserve = node;
+					else e.s.push({node, front.first});
+				}
+				else if(forbidden.find(current)==forbidden.end()) {
+					e.s.push({node, front.first});
 				}
 			}
 		}
-		sort(preserve.begin(), preserve.end(),
-			[&](pair<int, pair<int, int>> a, pair<int, pair<int, int>> b) {
-				return dist(a, goal) > dist(b, goal);;
-				});
-		while (!preserve.empty()) {
-			// printf("Adding %d to stack.\n", preserve.back().first);
-			e.s.push({preserve.back().first, front.first});
-			preserve.pop_back();
-		}
+		if (preserve!=-1) e.s.push({preserve, front.first});
 	}
 	return false;
 }
