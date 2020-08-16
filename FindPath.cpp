@@ -86,6 +86,46 @@ void construct() {
 	}
 }
 
+void generateOutput(stack<int> path) {
+	vector<int> p;
+	while (!path.empty()) {
+		p.push_back(path.top());
+		path.pop();
+	}
+	for (int i=(int)p.size()-2;i>=0;i--) {
+		pair<int, char> f = determine(p[i]), s = determine(p[i+1]);
+		if (abs(p[i]-p[i+1]) == 1) {
+			if (f.second=='r' && s.second=='c') {
+				printf("{%d, %d, %d}, ", f.first, s.first, 3);
+			}
+			else if (f.second=='c' && s.second=='r') {
+				printf("{%d, %d, %d}, ", s.first, f.first, 3);
+			}
+			else {
+				if (f.second=='c') {
+					int row = determine(p[i]+1).first;
+					printf("{%d, %d, %d}, ", row, f.first, 1);
+				}
+				else if (s.second == 'c') {
+					int row = determine(p[i+1]+1).first;
+					printf("{%d, %d, %d}, ", row, s.first, 1);
+				}
+			}
+		}
+		
+		else if (abs(p[i]-p[i+1]) == 2) {
+			if (f.second=='r') {
+				int column = determine(p[i]-1).first;
+				printf("{%d, %d, %d}, ", f.first, column, 2);
+			}
+			else if (s.second=='r') {
+				int column = determine(p[i+1]-1).first;
+				printf("{%d, %d, %d}, ", s.first, column, 2);
+			}
+		}
+	}
+}
+
 void printPath(int index, stack<int> path) {
 	printf("Path for element: %d\n", index);
 	vector<int> p;
@@ -108,20 +148,26 @@ void printPath(int index, stack<int> path) {
 			c=current.first;
 			r=determine(p[i]+1).first;
 		}
-		if (p[i]>k*k*3) printf("(%d%c)", current.first, current.second);
-		else printf("(%d, %d)", r, c);
-		// printf("%d", p[i]);
+		// if (p[i]>k*k*3) printf("(%d%c)", current.first, current.second);
+		// else printf("(%d, %d)", r, c);
+		printf("%d", p[i]);
 		if (i>0) printf(" -> ");
 	}
 	cout<<endl;
 }
 
+int dist (pair<int, pair<int, int>> a, pair<int, int> goal) {
+	return (a.second.first-goal.first)*(a.second.first-goal.first)+
+			(a.second.second-goal.second)*(a.second.second-goal.second);
+}
 bool dfs(int index) {
 	Element e  = elements[index];
 	e.s.push({e.source, e.source});
 	e.path.push(e.source);
 	pair<int, char> destination = determine(e.ground);
+	pair<int, int> goal = {determine(e.plus+2).first, determine(e.plus+1).first};
 	
+	// printf("Goal is at: (%dr, %dc)\n", goal.first, goal.second);
 	while (!e.s.empty()) {
 		pair<int, int> front = e.s.top();
 		e.s.pop();
@@ -152,23 +198,32 @@ bool dfs(int index) {
 		}
 		if (front.first == e.ground) {
 			e.path.push(e.ground);
-			printPath(index, e.path);
+			// printPath(index, e.path);
 			// printf("Forbidden in this path: ");
 			// for (pair<int, char> f: forbidden) {
 				// printf("%d%c ", f.first, f.second);
 			// }
 			// printf("\n");
-			if (index+1==n || (index+1<n && dfs(index+1))) return true;
+			if (index+1==n || (index+1<n && dfs(index+1))) {
+				// printPath(index, e.path);
+				generateOutput(e.path);
+				return true;
+			}
 			continue;
 		}
 		e.vis[front.first] = true;
 		e.path.push(front.first);
 		if (front.first==e.plus) {
 			e.s.push({e.minus, e.plus});
+			if (destination.second=='r') {
+				goal = {destination.first, k};
+			}
+			else goal = {k, destination.first};
+			// printf("Goal is at: (%dr, %dc)\n", goal.first, goal.second);
 			continue;
 		}
 		
-		deque<pair<int, int>> preserve;
+		vector<pair<int, pair<int, int>>> preserve;
 		for (int node: graph[front.first]) {
 			// printf("Checking node: %d\n", node);
 			if (!e.vis[node]) {
@@ -188,24 +243,29 @@ bool dfs(int index) {
 				
 				pair<int, char> current = determine(node);
 				if (current.second=='e') continue;
-				// if (front.second==e.minus && 
-						// (front.first+1==node || node+1==front.first)) {
-							// // printf("Wont be adding %d because of %d and %d\n", node, front.first, front.second);
-							// continue;
-						// }
-				if (fnode==current || (e.vis[e.minus] && current==destination)) {
-					// e.s.push({node, front.first});
-					preserve.push_front({node, front.first});
-				}
-				else if	(forbidden.find(current)==forbidden.end()) {
-					preserve.push_back({node, front.first});
+				if (front.second==e.minus && 
+						(front.first+1==node || node+1==front.first)) {
+							// printf("Wont be adding %d because of %d and %d\n", node, front.first, front.second);
+							continue;
+						}
+				if (fnode==current || (e.vis[e.minus] && current==destination) ||
+					forbidden.find(current)==forbidden.end()) {
+					pair<int, int> rc;
+					if (current.second=='r')
+						rc = {current.first, determine(current.first-1).first};
+					else rc = {determine(current.first+1).first, current.first}; 
+					preserve.push_back({node, rc});
 					// e.s.push({node, front.first});
 				}
 			}
 		}
+		sort(preserve.begin(), preserve.end(),
+			[&](pair<int, pair<int, int>> a, pair<int, pair<int, int>> b) {
+				return dist(a, goal) > dist(b, goal);;
+				});
 		while (!preserve.empty()) {
 			// printf("Adding %d to stack.\n", preserve.back().first);
-			e.s.push(preserve.back());
+			e.s.push({preserve.back().first, front.first});
 			preserve.pop_back();
 		}
 	}
@@ -233,6 +293,6 @@ int main() {
 	// for (int x: graph[26]) cout<<x<<" ";
 	// cout<<endl;
 	// dfs(1);
-	dfs(1);
+	dfs(0);
 	return 0;
 }
