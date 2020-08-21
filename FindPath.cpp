@@ -238,16 +238,20 @@ bool dfs(int index) {
 	Element e  = elements[index];
 	e.s.push({e.source, e.source});
 	e.path.push(e.source);
-	pair<int, char> destination = determine(e.ground);
-	pair<int, int> goal = {determine(e.plus+2).first, determine(e.plus+1).first};
-	
-	// printf("Goal is at: (%dr, %dc)\n", goal.first, goal.second);
+	pair<pair<int, char>, pair<int, char>> destination = {determine(e.plus+2), determine(e.plus+1)};
+	// printf("Goal is at: (%dr, %dc)\n", destination.first.first, destination.second.first);
 	while (!e.s.empty()) {
 		pair<int, int> front = e.s.top();
 		e.s.pop();
 		// printf("Now visiting node: %d\n", front.first);
 		
 		pair<int, char> fnode = determine(front.first);
+		pair<int, char> fnodeS = fnode.second=='r'? determine(front.first-1) : determine(front.first+1);
+		if (front.first == e.source) {
+			if (fnode.second=='r') fnodeS = {16, 'c'};
+			else fnodeS = {16, 'r'};
+		}
+		// if (index==7) printf("Now visiting (%d%c, %d%c).\n", fnode.first, fnode.second, fnodeS.first, fnodeS.second);
 		if (fnode.first!=-1) {
 			if (forbidden.find(fnode)==forbidden.end()) {
 				forbidden.insert(fnode);
@@ -271,13 +275,13 @@ bool dfs(int index) {
 			e.path.pop();
 		}
 		if (front.first == e.ground) {
-			e.path.push(e.ground);
+			// e.path.push(e.ground);
 			// printPath(index, e.path);
 			// printf("Forbidden in this path: ");
-			// for (pair<int, char> f: forbidden) {
-				// printf("%d%c ", f.first, f.second);
-			// }
-			// printf("\n");
+				// for (pair<int, char> f: forbidden) {
+					// printf("%d%c ", f.first, f.second);
+				// }
+				// printf("\n");
 			if (index+1==n || (index+1<n && dfs(index+1))) {
 				// printPath(index, e.path);
 				determineSwitches(e.path);
@@ -289,34 +293,25 @@ bool dfs(int index) {
 		e.path.push(front.first);
 		if (front.first==e.plus) {
 			e.s.push({e.minus, e.plus});
-			if (destination.second=='r') {
-				goal = {destination.first, k};
-			}
-			else goal = {k, destination.first};
-			// printf("Goal is at: (%dr, %dc)\n", goal.first, goal.second);
+			pair<int, char> gnd = determine(e.ground);
+			if (gnd.second=='r') destination = {gnd, {k+1, 'c'}};
+			else destination={{k+1, 'r'}, gnd};
+			// printf("Goal is at: (%dr, %dc)\n", destination.first.first, destination.second.first);
 			continue;
 		}
 		
-		int preserve = -1;
-		bool found = false;
-		for (int node: graph[front.first]) {
-			if (!e.vis[node]) {
-				if (node==e.plus) {
-					found = true;
-					e.s.push({node, front.first});
-					break;
-				}
-				if (node==e.ground && e.vis[e.minus]) {
-					found = true;
-					e.s.push({node, front.first});
-					break;
-				}
-			}
-		}
-		if (found) continue;
+		deque<int> nodes;
+		bool found = false, pushed = false;
+		
 		for (int node: graph[front.first]) {
 			// printf("Checking node: %d\n", node);
 			if (!e.vis[node]) {
+				if (node==e.plus || (node==e.ground && e.vis[e.minus])) {
+					found = true;
+					e.s.push({node, front.first});
+					break;
+				}
+				
 				pair<int, char> current = determine(node);
 				if (current.second=='e') continue;
 				if (front.second==e.minus && 
@@ -324,16 +319,41 @@ bool dfs(int index) {
 							// printf("Wont be adding %d because of %d and %d\n", node, front.first, front.second);
 							continue;
 						}
-				if (fnode==current || (e.vis[e.minus] && current==destination)) {
-					if (preserve == -1) preserve = node;
-					else e.s.push({node, front.first});
-				}
-				else if(forbidden.find(current)==forbidden.end()) {
-					e.s.push({node, front.first});
+				
+				bool destF = forbidden.find(destination.first)==forbidden.end();
+				bool destS = forbidden.find(destination.second)==forbidden.end();
+				
+				if (((destF || e.vis[e.minus] || fnode==current) && destination.first==current) ||
+					((destS || e.vis[e.minus] || fnode==current) && destination.second==current)  ||
+					(fnode==current && ((current.second=='c' && (destF || (e.vis[e.minus] && destination.first.first!=k+1))) || 
+					(current.second=='r' && (destS || (e.vis[e.minus] && destination.second.first!=k+1)))))) {
+						if (fnode==current && current.second=='c') {
+							int currentRow = determine(node+1).first, fromRow = determine(front.first+1).first;
+							if (front.first==e.source) fromRow=k;
+							if (abs(destination.first.first-currentRow)> abs(destination.first.first-fromRow)) continue;
+						}
+						if (fnode==current && current.second=='r') {
+							int currentColumn = determine(node-1).first, fromColumn = determine(front.first-1).first;
+							if (front.first==e.source) fromColumn=k;
+							if (abs(destination.second.first-currentColumn)> abs(destination.second.first-fromColumn)) continue;
+						}
+						nodes.push_front(node);
+						// e.s.push({node, front.first});
+						pushed = true;
+				} 
+				else if (fnode==current) nodes.push_back(node);
+				else if (forbidden.find(current)==forbidden.end()) {
+					if (!pushed && ((destination.first.first==k+1 && current.second=='r') ||
+						(destination.second.first==k+1 && current.second=='c'))) nodes.push_front(node);
+					else nodes.push_back(node);
 				}
 			}
 		}
-		if (preserve!=-1) e.s.push({preserve, front.first});
+
+		while (!nodes.empty()) {
+			if (!found) e.s.push({nodes.back(), front.first});
+			nodes.pop_back();
+		}
 	}
 	return false;
 }
@@ -362,6 +382,10 @@ int main() {
 	// for (int x: graph[26]) cout<<x<<" ";
 	// cout<<endl;
 	// dfs(1);
-	if (dfs(0)) generateCircuitFile();
+	if (dfs(0)) {
+		printf("Path found. Check SwitchingMatrix.txt.\n");
+		generateCircuitFile();
+	}
+	else printf("Path not found.\n");
 	return 0;
 }
