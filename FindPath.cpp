@@ -234,12 +234,18 @@ void printPath(int index, stack<int> path) {
 	cout<<endl;
 }
 
+int dist (pair<pair<int, char>, pair<int, char>> a, pair<pair<int, char>, pair<int, char>> b) {
+	return (a.first.first-b.first.first)*(a.first.first-b.first.first)+
+			(a.second.first-b.second.first)*(a.second.first-b.second.first);
+}
+
 bool dfs(int index) {
 	Element e  = elements[index];
 	e.s.push({e.source, e.source});
 	e.path.push(e.source);
 	pair<pair<int, char>, pair<int, char>> destination = {determine(e.plus+2), determine(e.plus+1)};
 	// printf("Goal is at: (%dr, %dc)\n", destination.first.first, destination.second.first);
+
 	while (!e.s.empty()) {
 		pair<int, int> front = e.s.top();
 		e.s.pop();
@@ -277,11 +283,11 @@ bool dfs(int index) {
 		if (front.first == e.ground) {
 			// e.path.push(e.ground);
 			// printPath(index, e.path);
-			// printf("Forbidden in this path: ");
+			// printf("Forbidden in this path after: ");
 				// for (pair<int, char> f: forbidden) {
 					// printf("%d%c ", f.first, f.second);
 				// }
-				// printf("\n");
+			// printf("\n");
 			if (index+1==n || (index+1<n && dfs(index+1))) {
 				// printPath(index, e.path);
 				determineSwitches(e.path);
@@ -301,7 +307,7 @@ bool dfs(int index) {
 		}
 		
 		deque<int> nodes;
-		bool found = false, pushed = false;
+		bool found = false;
 		
 		for (int node: graph[front.first]) {
 			// printf("Checking node: %d\n", node);
@@ -314,14 +320,14 @@ bool dfs(int index) {
 				
 				pair<int, char> current = determine(node);
 				if (current.second=='e') continue;
-				if (front.second==e.minus && 
-						(front.first+1==node || node+1==front.first)) {
-							// printf("Wont be adding %d because of %d and %d\n", node, front.first, front.second);
-							continue;
-						}
+				// if (front.second==e.minus && 
+						// (front.first+1==node || node+1==front.first)) {
+							// // printf("Wont be adding %d because of %d and %d\n", node, front.first, front.second);
+							// continue;
+						// }
 				
-				bool destF = forbidden.find(destination.first)==forbidden.end();
-				bool destS = forbidden.find(destination.second)==forbidden.end();
+				bool destF = forbidden.find(destination.first)==forbidden.end() && destination.first.first!=k+1;
+				bool destS = forbidden.find(destination.second)==forbidden.end() && destination.second.first!=k+1;
 				
 				if (((destF || e.vis[e.minus] || fnode==current) && destination.first==current) ||
 					((destS || e.vis[e.minus] || fnode==current) && destination.second==current)  ||
@@ -330,21 +336,35 @@ bool dfs(int index) {
 						if (fnode==current && current.second=='c') {
 							int currentRow = determine(node+1).first, fromRow = determine(front.first+1).first;
 							if (front.first==e.source) fromRow=k;
-							if (abs(destination.first.first-currentRow)> abs(destination.first.first-fromRow)) continue;
+							// if (abs(destination.first.first-currentRow)> abs(destination.first.first-fromRow)) {
+								// nodes.push_back(node);
+								// continue;
+							// }
+							if (dist({{currentRow, 'r'}, current}, destination)>dist({{fromRow, 'r'}, current}, destination)) {
+								nodes.push_back(node);
+								continue;
+							}
 						}
 						if (fnode==current && current.second=='r') {
 							int currentColumn = determine(node-1).first, fromColumn = determine(front.first-1).first;
 							if (front.first==e.source) fromColumn=k;
-							if (abs(destination.second.first-currentColumn)> abs(destination.second.first-fromColumn)) continue;
+							// if (abs(destination.second.first-currentColumn)> abs(destination.second.first-fromColumn)) {
+								// nodes.push_back(node);
+								// continue;
+							// }
+							if (dist({current, {currentColumn, 'c'}}, destination)>dist({current, {fromColumn, 'c'}}, destination)) {
+								nodes.push_back(node);
+								continue;
+							}
 						}
-						nodes.push_front(node);
-						// e.s.push({node, front.first});
-						pushed = true;
+						// nodes.push_front(node);
+						e.s.push({node, front.first});
+						found = true;
 				} 
-				else if (fnode==current) nodes.push_back(node);
+				else if (fnode==current) nodes.push_front(node);
 				else if (forbidden.find(current)==forbidden.end()) {
-					if (!pushed && ((destination.first.first==k+1 && current.second=='r') ||
-						(destination.second.first==k+1 && current.second=='c'))) nodes.push_front(node);
+					if ((destination.first.first==k+1 && current.second=='r') ||
+						(destination.second.first==k+1 && current.second=='c')) nodes.push_front(node);
 					else nodes.push_back(node);
 				}
 			}
@@ -355,6 +375,14 @@ bool dfs(int index) {
 			nodes.pop_back();
 		}
 	}
+	while (e.path.top()!=e.path.empty()) {
+		// printf("Popping: %d\n", e.path.top());
+		e.vis[e.path.top()] = false;
+		pair<int, char> t = determine(e.path.top());
+		if (e.m[t]!=-1) e.m[t]--;
+		if (e.m[t]==0) forbidden.erase(t); 
+		e.path.pop();
+		}
 	return false;
 }
 
