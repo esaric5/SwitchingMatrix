@@ -146,7 +146,7 @@ void construct() {
 		graph[e.plus].push_back(e.minus);
 		graph[e.minus].push_back(e.plus);
 	}
-	
+
 	for (pair<int, char> p: forbidden) {
 		for (Element &e: elements) {
 			e.m[p]=-1;
@@ -232,14 +232,16 @@ bool dfs(int index) {
 	Element e  = elements[index];
 	e.s.push({e.source, e.source});
 	e.path.push(e.source);
-	pair<pair<int, char>, pair<int, char>> destination = {determine(e.plus+2), determine(e.plus+1)};
-
+	pair<pair<int, char>, pair<int, char>> sourceDestination = {determine(e.plus+2), determine(e.plus+1)}, destination = sourceDestination;
+	pair<int, char> gnd = determine(e.ground);
+	if (forbidden.find(destination.first)!=forbidden.end() && forbidden.find(destination.second)!=forbidden.end() &&
+		determine(e.source)!=destination.first && determine(e.source)!=destination.second) return false;
+	
 	while (!e.s.empty()) {
 		pair<int, int> front = e.s.top();
 		e.s.pop();
 		
 		pair<int, char> fnode = determine(front.first);
-
 		if (fnode.first!=-1) {
 			if (forbidden.find(fnode)==forbidden.end()) {
 				forbidden.insert(fnode);
@@ -254,6 +256,7 @@ bool dfs(int index) {
 		
 		while (e.path.top()!=front.second) {
 			e.vis[e.path.top()] = false;
+			if (e.path.top()==e.plus) destination = sourceDestination;
 			pair<int, char> t = determine(e.path.top());
 			if (e.m[t]!=-1) e.m[t]--;
 			if (e.m[t]==0) forbidden.erase(t); 
@@ -261,6 +264,7 @@ bool dfs(int index) {
 			e.path.pop();
 		}
 		if (front.first == e.ground) {
+			// printPath(index, e.path);
 			if (index+1==n || (index+1<n && dfs(index+1))) {
 				determineSwitches(e.path);
 				return true;
@@ -271,74 +275,86 @@ bool dfs(int index) {
 		e.path.push(front.first);
 		if (front.first==e.plus) {
 			e.s.push({e.minus, e.plus});
-			pair<int, char> gnd = determine(e.ground);
 			if (gnd.second=='r') destination = {gnd, {k+1, 'c'}};
 			else destination={{k+1, 'r'}, gnd};
 			continue;
 		}
 		
 		deque<int> nodes;
-		bool found = false;
+		bool found = false, pushed = false;
 		
 		for (int node: graph[front.first]) {
 			if (!e.vis[node]) {
-				if (node==e.plus || (node==e.ground && e.vis[e.minus])) {
-					found = true;
+				if (node==e.plus || (e.vis[e.minus] && node==e.ground)) {
+					if (found) e.s.pop();
+					else found = true;
 					e.s.push({node, front.first});
 					break;
 				}
+				
+				if (found) continue;
 				
 				pair<int, char> current = determine(node);
 				if (current.second=='e') continue;
 				if (front.second==e.minus && (front.first+1==node || node+1==front.first)) continue;
 				
-				bool destF = forbidden.find(destination.first)==forbidden.end() && destination.first.first!=k+1;
-				bool destS = forbidden.find(destination.second)==forbidden.end() && destination.second.first!=k+1;
+				bool destRow = forbidden.find(destination.first)==forbidden.end() && destination.first.first!=k+1;
+				bool destColumn = forbidden.find(destination.second)==forbidden.end() && destination.second.first!=k+1;
 				
-				if (((destF || e.vis[e.minus] || fnode==current) && destination.first==current) ||
-					((destS || e.vis[e.minus] || fnode==current) && destination.second==current)  ||
-					(fnode==current && ((current.second=='c' && (destF || (e.vis[e.minus] && destination.first.first!=k+1))) || 
-					(current.second=='r' && (destS || (e.vis[e.minus] && destination.second.first!=k+1)))))) {
-						if (fnode==current && current.second=='c') {
-							int currentRow = determine(node+1).first, fromRow = determine(front.first+1).first;
-							if (front.first==e.source) fromRow=k;
-							if (dist({{currentRow, 'r'}, current}, destination)>dist({{fromRow, 'r'}, current}, destination)) {
-								nodes.push_back(node);
-								continue;
-							}
+				auto isApproachingDestination = [&]() {
+					if (fnode==current && current.second=='c') {
+						int currentRow = determine(node+1).first, fromRow = determine(front.first+1).first;
+						if (front.first==e.source) fromRow=k+1;
+						if (abs(destination.first.first-currentRow)>abs(destination.first.first-fromRow)) return false;
+					}
+					
+					if (fnode==current && current.second=='r') {
+						int currentColumn = determine(node-1).first, fromColumn = determine(front.first-1).first;
+						if (front.first==e.source) fromColumn=k+1;
+						if (abs(destination.second.first-currentColumn)>abs(destination.second.first-fromColumn)) return false;
+					}
+					return true;
+				};
+				
+				bool check = fnode==current || (e.vis[e.minus] && current==gnd);
+				//In the same row/column as destination
+				if (((check || destRow) && destination.first==current) || 
+					((check || destColumn) && destination.second==current)) {
+					if (!isApproachingDestination()) continue;
+					found = true;
+					e.s.push({node, front.first});
+					continue;
+				}
+				
+				//Try one switch approach first
+				if (fnode==current) {
+					if (isApproachingDestination() && 
+						((current.second=='c' && (destRow || (e.vis[e.minus] && gnd.second=='r'))) || 
+						(current.second=='r' && (destColumn || (e.vis[e.minus] && gnd.second=='c'))))) {
+							nodes.push_front(node);
+							pushed = true;
 						}
-						if (fnode==current && current.second=='r') {
-							int currentColumn = determine(node-1).first, fromColumn = determine(front.first-1).first;
-							if (front.first==e.source) fromColumn=k;
-							if (dist({current, {currentColumn, 'c'}}, destination)>dist({current, {fromColumn, 'c'}}, destination)) {
-								nodes.push_back(node);
-								continue;
-							}
-						}
-						e.s.push({node, front.first});
-						found = true;
-				} 
-				else if (fnode==current) nodes.push_front(node);
-				else if (forbidden.find(current)==forbidden.end()) {
-					if ((destination.first.first==k+1 && current.second=='r') ||
-						(destination.second.first==k+1 && current.second=='c')) nodes.push_front(node);
 					else nodes.push_back(node);
+				}
+				else if (forbidden.find(current)==forbidden.end()) {
+					if (pushed) nodes.push_back(node);
+					else nodes.push_front(node);
 				}
 			}
 		}
-
 		while (!nodes.empty()) {
 			if (!found) e.s.push({nodes.back(), front.first});
 			nodes.pop_back();
 		}
 	}
+	
 	while (!e.path.empty()) {
 		e.vis[e.path.top()] = false;
 		pair<int, char> t = determine(e.path.top());
 		if (e.m[t]!=-1) e.m[t]--;
 		if (e.m[t]==0) forbidden.erase(t); 
 		e.path.pop();
-		}
+	}
 	return false;
 }
 
@@ -363,6 +379,7 @@ int main() {
 		e.vis.resize(k*k*3+2*k+1);
 	}
 	construct();
+	generateCircuitFile();
 	if (dfs(0)) {
 		printf("Path found. Check SwitchingMatrix.txt.\n");
 		generateCircuitFile();
