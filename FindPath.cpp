@@ -27,8 +27,8 @@ void generateCircuitFile() {
 	out.open("SwitchingMatrix.txt");
 	out<<"$ 1 5.0E-6 10 50 5.0 50\n";
 	int x=30, y=30;
-	for (int i=1;i<=k;i++, y+=140) {
-		for (int j=1;j<=k;j++, x+=140) {
+	for (int i=1;i<=k;i++) {
+		for (int j=1;j<=k;j++) {
 			pair<int, int> ij = {i, j};
 			string s[3];
 			s[0] = "s " + to_string(x) + " " + to_string(y+100) + " " + 
@@ -67,6 +67,7 @@ void generateCircuitFile() {
 				if (voltages.find(j+k)!=voltages.end()) out<<v;
 				if (grounds.find(j+k)!=grounds.end()) out<<g;
 			}
+			x+=140;
 		}
 		string v = "R " + to_string(x) + " " + to_string(y) + " " + 
 					to_string(x+50) + " " + to_string(y) + "  0 40.0 5.0 0.0\n";
@@ -76,6 +77,7 @@ void generateCircuitFile() {
 		if (voltages.find(i)!=voltages.end()) out<<v;
 		if (grounds.find(i)!=grounds.end()) out<<g;	
 		x=30;
+		y+=140;
 	}
 	
 	for (int i=0;i<n*2;i+=2) {
