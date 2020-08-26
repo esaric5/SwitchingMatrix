@@ -28,6 +28,7 @@ void generateCircuitFile() {
 	out<<"$ 1 5.0E-6 10 50 5.0 50\n";
 	for (int i=1, y=30, x=30;i<=k;i++, y+=140, x=30) {
 		for (int j=1;j<=k;j++, x+=140) {
+			// printf("(%d, %d): x=%d, y=%d\n", i, j, x, y);
 			pair<int, int> ij = {i, j};
 			string s[3];
 			s[0] = "s " + to_string(x) + " " + to_string(y+100) + " " + 
