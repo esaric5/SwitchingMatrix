@@ -234,7 +234,9 @@ bool dfs(int index) {
 	e.path.push(e.source);
 	pair<pair<int, char>, pair<int, char>> sourceDestination = {determine(e.plus+2), determine(e.plus+1)}, destination = sourceDestination;
 	pair<int, char> gnd = determine(e.ground);
-	if (forbidden.find(destination.first)!=forbidden.end() && forbidden.find(destination.second)!=forbidden.end() &&
+	bool forbiddenDestRow = forbidden.find(destination.first)!=forbidden.end();
+	bool forbiddenDestColumn = forbidden.find(destination.second)!=forbidden.end();
+	if (forbiddenDestRow && forbiddenDestColumn &&
 		determine(e.source)!=destination.first && determine(e.source)!=destination.second) return false;
 	
 	while (!e.s.empty()) {
@@ -295,6 +297,25 @@ bool dfs(int index) {
 				if (found) continue;
 				
 				pair<int, char> current = determine(node);
+				if (fnode.second=='c' && current.second=='r') {
+					if (!e.vis[e.plus]) {
+						if (forbiddenDestColumn && destination.first.first!=current.first) continue;
+						if (fnode.first==destination.second.first) continue;
+					}
+					else {
+						if (gnd.second=='r' && current.first!=gnd.first) continue;
+					}
+				}
+				if (fnode.second=='r' && current.second=='c') {
+					if (!e.vis[e.plus]) {
+						if (forbiddenDestRow && destination.second.first!=current.first) continue;
+						if (fnode.first==destination.first.first) continue;
+					}
+					else {
+						if (gnd.second=='c' && current.first!=gnd.first) continue;
+					}
+				}
+
 				if (current.second=='e') continue;
 				if (front.second==e.minus && (front.first+1==node || node+1==front.first)) continue;
 				
