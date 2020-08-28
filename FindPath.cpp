@@ -400,6 +400,8 @@ int main() {
 		e.vis.resize(k*k*3+2*k+1);
 	}
 	construct();
+	//NOTE: Generating circuit file without switches here
+	generateCircuitFile();
 	if (dfs(0)) {
 		printf("Path found. Check SwitchingMatrix.txt.\n");
 		generateCircuitFile();
